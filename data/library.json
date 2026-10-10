@@ -1,0 +1,14 @@
+{
+  "_howToAdd": "Add one object to 'resources' per PDF. Only fill fields you actually know. Required: id (unique, lowercase-with-dashes), title, subject (must match a subject name below), type. Optional: author, topic, year, description, chapters (list), keywords (list), file (path like 'files/calculus-notes.pdf') OR url (legitimate source), access ('Private study' | 'Public' | 'Group'), license, status, added (YYYY-MM-DD).",
+  "subjects": [
+    {"name": "Mathematics", "description": "Calculus, algebra, statistics and more."},
+    {"name": "Physics", "description": "Mechanics, waves, electricity and modern physics."},
+    {"name": "Chemistry", "description": "General, organic and physical chemistry."},
+    {"name": "Engineering", "description": "Core engineering principles and applications."},
+    {"name": "Programming and Computer Science", "description": "Programming, web development and computing theory."},
+    {"name": "Petroleum and Gas Engineering", "description": "Reservoir, drilling and production engineering."},
+    {"name": "General Studies", "description": "Study skills and general academic material."},
+    {"name": "Other Subjects", "description": "Everything that doesn't fit elsewhere yet."}
+  ],
+  "resources": []
+}

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="ShinkaNotes is a simple study platform for organized notes, formulas, examples, and learning resources.">
+<meta name="keywords" content="ShinkaNotes, study notes, student notes, mathematics, physics, chemistry, engineering, programming">
+<meta name="author" content="Uwadia Daniel (Danny Ekusu)">
+<meta property="og:title" content="ShinkaNotes | Learn. Improve. Repeat.">
+<meta property="og:image" content="https://dannyekusu.github.io/shinkanotes/assets/icon-192.png">
+<meta property="og:description" content="Explore simple, organized study notes, formulas, examples, and learning resources with ShinkaNotes.">
+<meta property="og:url" content="https://dannyekusu.github.io/shinkanotes/">
+<meta property="og:type" content="website">
+<title>Create account | ShinkaNotes</title>
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="main.css">
+</head>
+<body data-page="registration" data-access="public">
+<!-- main.js adds the topbar, sidebar and footer around #app on every page. -->
+<main id="app" class="container">
+<h1>Create your account</h1><p class="muted">Step 1 of 2: your details</p>
+<form id="registration-form" class="card" novalidate>
+<label>Full name<input id="fullname" name="fullname" required minlength="2" maxlength="100" autocomplete="name"></label>
+<label>Email<input id="email" name="email" type="email" required autocomplete="email"></label>
+<label>Password (8+ characters)<input id="password" name="password" type="password" required minlength="8" autocomplete="new-password"></label>
+<label>Confirm password<input id="confirm-password" name="confirm-password" type="password" required minlength="8" autocomplete="new-password"></label>
+<button class="btn" type="submit">Continue</button></form></main>
+<script src="main.js"></script>
+</body>
+</html>

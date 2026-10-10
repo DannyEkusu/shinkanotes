@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="description" content="ShinkaNotes is a simple study platform for organized notes, formulas, examples, and learning resources.">
+        <meta name="keywords" content="ShinkaNotes, study notes, student notes, mathematics, physics, chemistry, engineering, programming.">
+        <meta name="author" content="Uwadia Daniel">
+        <meta property="og:title" content="ShinkaNotes | Learn. Improve. Repeat.">
+        <meta property="og:image" content="">
+        <meta property="og:description" content="Explore simple, oranized study notes, formulas, examples, and learning resources with ShinkaNotes.">
+        <meta property="og:url" content="https://dannyekusu.github.io/shinkanotes/">
+        <meta property="og:type" content="website">
+        <link rel="stylesheet" href="main.css">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+
+        <title>ShinkaNotes</title>
+
+    </head>
+    <body>
+        <header class="topbar">
+            <button class="menu-toggle" id="menu-toggle" aria-label="Open navigation menu" aria-expanded="false">
+                =
+            </button>
+            <a href="index.html" class="site-logo">ShinkaNotes</a>
+            <nav class="desktop-nav">
+                <a href="index.html" class="active">Dashboard</a>
+                <a href="subjects.html">Subjects</a>
+                <a href="notes.html">Notes</a>
+                
+            </nav>
+            <div class="search-container">
+                <button class="search-button" id="search-button" aria-label="Open search">Search</button>
+                <input type="search" id="site-search" placeholder="Search ShinkaNotes..." aria-label="Search ShinkaNotes"> 
+            </div>
+            <a href="profile2.html" class="profile-button" aria-label="Open profile">
+                <img id="nav-profile-picture" src="assets/avatars/default.png" alt="Profile">
+                Profile
+            </a>
+        </header>
+
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2>ShinkaNotes</h2>
+                <button id="close-sidebar" aria-label="Close navigation menu">X</button>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="index.html">Dashboard</a>
+                <a href="subjects.html">Subjects</a>
+                <a href="notes.html">Notes</a>
+                <a href="profile2.html">Profile</a>
+                <a href="activity.html">Activity History</a>
+                <a href="saved.html">Saved Notes</a>
+                <a href="progress.html">My Progress</a>
+                <a href="settings.html">Settings</a>
+                <a href="about.html">About</a>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <button id="sign-out">Sign out</button>
+            </div>
+        </aside>
+        <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+
+        <h1>YOUR ACTIVITY</h1>
+
+        <script src="main.js"></script>
+    </body>
+
+</html>
