@@ -18,13 +18,15 @@
 <body data-page="registration" data-access="public">
 <!-- main.js adds the topbar, sidebar and footer around #app on every page. -->
 <main id="app" class="container">
-<h1>Create your account</h1><p class="muted">Step 1 of 2: your details</p>
+<h1>Create your account</h1><p class="muted">Step 1 of 3: your details, then confirm your email</p>
 <form id="registration-form" class="card" novalidate>
 <label>Full name<input id="fullname" name="fullname" required minlength="2" maxlength="100" autocomplete="name"></label>
 <label>Email<input id="email" name="email" type="email" required autocomplete="email"></label>
 <label>Password (8+ characters)<input id="password" name="password" type="password" required minlength="8" autocomplete="new-password"></label>
 <label>Confirm password<input id="confirm-password" name="confirm-password" type="password" required minlength="8" autocomplete="new-password"></label>
-<button class="btn" type="submit">Continue</button></form></main>
+<button class="btn" type="submit">Create account</button></form>
+<p id="auth-msg" role="status" aria-live="polite"></p>
+<button id="resend" class="btn ghost" type="button" hidden>Resend confirmation email</button></main>
 <script src="main.js"></script>
 </body>
 </html>

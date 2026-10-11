@@ -1,22 +1,22 @@
 /* ShinkaNotes main.js — one script shared by every page.
    1 Helpers  2 Auth guard  3 Shared layout  4 Library data  5 Page logic
-   PROTOTYPE NOTE: login here is a front-end demo stored in localStorage.
-   It is NOT secure authentication (see the notice on login.html). */
+   AUTH: Supabase Authentication (config in supabase-config.js). Notes, saved items,
+   activity and progress are still stored in this browser (localStorage) until the
+   database stage; only sign-in and the profile live in Supabase for now. */
 "use strict";
 
 /* ---------- 1. Helpers ---------- */
 // Every storage key lives here so pages never disagree about names.
-const K = { user: "shinka.user", session: "shinka.session", theme: "shinka.theme",
-  notes: "shinka.notes", saved: "shinka.saved", done: "shinka.done",
-  activity: "shinka.activity", notif: "shinka.notifications", pending: "shinka.pending" };
+const K = { theme: "shinka.theme", notes: "shinka.notes", saved: "shinka.saved", done: "shinka.done",
+  activity: "shinka.activity", notif: "shinka.notifications" };
 const $ = (s, r = document) => r.querySelector(s);
 const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v === null ? d : v; } catch { return d; } };
 const store = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const when = iso => new Date(iso).toLocaleString();
 const body = document.body, PAGE = body.dataset.page, PRIVATE = body.dataset.access === "private";
-const user = load(K.user, null);
-const signedIn = !!(load(K.session, false) && user);
+// Filled in by boot() once Supabase has told us who (if anyone) is signed in.
+let user = null, signedIn = false, sb = null;
 if (load(K.theme, "light") === "dark") body.classList.add("dark-mode");
 
 // Record a real user action (only called when something actually happens).
@@ -35,11 +35,37 @@ function toggleIn(key, id) {
 const avatar = (extra = "") => `<span class="avatar a${esc(user?.avatar || 1)} ${extra}" aria-hidden="true">${esc((user?.name || "S")[0].toUpperCase())}</span>`;
 const empty = (msg, href, label) => `<div class="empty"><p>${msg}</p>${href ? `<a class="btn" href="${href}">${label}</a>` : ""}</div>`;
 
-/* ---------- 2. Auth guard ---------- */
-function signOut() {
+/* ---------- 2. Supabase auth ---------- */
+const loadJS = src => new Promise((ok, no) => { const t = document.createElement("script"); t.src = src; t.onload = ok; t.onerror = () => no(src); document.head.appendChild(t); });
+const authMsg = (text, isErr = true) => { const m = $("#auth-msg"); if (m) { m.textContent = text; m.className = isErr ? "error" : "notice"; } };
+// Where Supabase sends people after they click the confirmation link (works on GitHub Pages and Netlify).
+const confirmUrl = () => new URL("profile.html", location.href).href;
+
+async function boot() {
+  try {
+    await loadJS("vendor/supabase-js-2.110.1.umd.js");   // pinned local copy, no CDN needed
+    await loadJS("supabase-config.js");
+    sb = window.supabase.createClient(window.SHINKA_SUPABASE.url, window.SHINKA_SUPABASE.publishableKey);
+  } catch (e) { sb = null; }
+  if (sb) {
+    // getSession() also picks up the session from the confirmation-link URL.
+    const { data } = await sb.auth.getSession(), s = data.session;
+    if (s) {
+      const { data: p } = await sb.from("profiles").select("full_name, avatar").eq("id", s.user.id).maybeSingle();
+      user = { id: s.user.id, email: s.user.email, name: p?.full_name || s.user.user_metadata?.full_name || "", avatar: p?.avatar || 1 };
+      signedIn = true;
+    }
+    // If you sign out in another tab, leave private pages here too.
+    sb.auth.onAuthStateChange(ev => { if (ev === "SIGNED_OUT" && PRIVATE) location.replace("logreg.html"); });
+  }
+  if (PRIVATE && !signedIn) return location.replace("logreg.html");
+  if (signedIn && ["login", "registration", "logreg"].includes(PAGE)) return location.replace("index.html");
+  init();
+}
+
+async function signOut() {
   if (!confirm("Are you sure you want to sign out?")) return;
-  localStorage.removeItem(K.session);
-  sessionStorage.clear();
+  await sb?.auth.signOut();
   location.href = "logreg.html";
 }
 
@@ -243,12 +269,12 @@ const PAGES = {
       const on = load(K.notif, false) && "Notification" in window && Notification.permission === "granted";
       $("#app").innerHTML = `<h1>Settings</h1><section class="card"><h2>Theme</h2><label>Appearance<select id="theme"><option value="light">Light</option><option value="dark">Dark</option></select></label></section>
         <section class="card"><h2>Notifications</h2><button id="notification-toggle" class="btn ghost">${on ? "Notifications enabled — turn off" : "Enable notifications"}</button></section>
-        <section class="card"><h2>Account &amp; privacy</h2><p class="muted">Your notes, saved items and activity are stored in this browser only (localStorage). Clearing browser data removes them.</p>
-        <div class="row"><button id="wipe" class="btn ghost">Delete all my data</button><button id="so" class="btn ghost">Sign out</button></div></section>`;
+        <section class="card"><h2>Account &amp; privacy</h2><p class="muted">Signed in as ${esc(user.email)}. Notes, saved items and activity are still stored in this browser only; clearing browser data removes them.</p>
+        <div class="row"><button id="wipe" class="btn ghost">Clear study data on this device</button><button id="so" class="btn ghost">Sign out</button></div></section>`;
       $("#theme").value = load(K.theme, "light");
       $("#theme").onchange = e => { store(K.theme, e.target.value); body.classList.toggle("dark-mode", e.target.value === "dark"); };
       $("#so").onclick = signOut;
-      $("#wipe").onclick = () => { if (confirm("Delete your account data from this browser?")) { Object.values(K).forEach(k => localStorage.removeItem(k)); location.href = "logreg.html"; } };
+      $("#wipe").onclick = () => { if (confirm("Clear notes, saved items and activity stored on this device?")) { Object.values(K).forEach(k => localStorage.removeItem(k)); location.reload(); } };
       $("#notification-toggle").onclick = async () => {
         if (!("Notification" in window)) return alert("Notifications are not supported by this browser.");
         if (on) { store(K.notif, false); return draw(); }
@@ -263,41 +289,64 @@ const PAGES = {
   },
 
   registration() {
-    $("#registration-form").onsubmit = e => {
+    const form = $("#registration-form"), resend = $("#resend");
+    form.onsubmit = async e => {
       e.preventDefault();
-      const f = e.target; if (!f.checkValidity()) return f.reportValidity();
-      if ($("#password").value !== $("#confirm-password").value) return alert("Passwords do not match.");
-      // The password is deliberately NOT saved anywhere.
-      sessionStorage.setItem(K.pending, JSON.stringify({ name: $("#fullname").value.trim(), email: $("#email").value.trim().toLowerCase() }));
-      location.href = "profile.html";
+      if (!form.checkValidity()) return form.reportValidity();
+      if (!sb) return authMsg("Could not reach the sign-up service. Check supabase-config.js and your connection.");
+      if ($("#password").value !== $("#confirm-password").value) return authMsg("Passwords do not match.");
+      const email = $("#email").value.trim().toLowerCase(), btn = form.querySelector("button[type=submit]");
+      btn.disabled = true; authMsg("Creating your account…", false);
+      const { data, error } = await sb.auth.signUp({ email, password: $("#password").value,
+        options: { data: { full_name: $("#fullname").value.trim() }, emailRedirectTo: confirmUrl() } });
+      btn.disabled = false;
+      if (error) return authMsg(error.message);
+      if (data.session) return location.href = "profile.html";           // only if email confirmation is off
+      // With confirmation on, an already-registered email returns a user with no identities.
+      if (data.user && data.user.identities && data.user.identities.length === 0) return authMsg("That email may already be registered. Try signing in instead.");
+      form.hidden = true; resend.hidden = false; resend.dataset.email = email;
+      authMsg(`Almost there! We sent a confirmation link to ${email}. Open it to finish setting up your profile.`, false);
+    };
+    resend.onclick = async () => {
+      const { error } = await sb.auth.resend({ type: "signup", email: resend.dataset.email, options: { emailRedirectTo: confirmUrl() } });
+      authMsg(error ? error.message : "Confirmation email sent again.", !!error);
     };
   },
 
   profile() {
-    const pend = JSON.parse(sessionStorage.getItem(K.pending) || "null");
-    if (!pend) return location.replace("registration.html");
-    document.querySelectorAll(".avatar").forEach(a => a.textContent = pend.name[0].toUpperCase());
-    $("#finish-registration").onclick = () => {
+    // Reached from the confirmation email link, so a session must exist.
+    if (!signedIn) return location.replace("login.html");
+    document.querySelectorAll(".avatar").forEach(a => a.textContent = (user.name || "S")[0].toUpperCase());
+    $("#finish-registration").onclick = async () => {
       const pick = $('input[name="avatar"]:checked');
-      if (!pick) return alert("Please choose a profile picture.");
-      store(K.user, { ...pend, avatar: pick.value });
-      store(K.session, true); sessionStorage.removeItem(K.pending);
+      if (!pick) return authMsg("Please choose a profile picture.");
+      const { error } = await sb.from("profiles").update({ avatar: Number(pick.value) }).eq("id", user.id);
+      if (error) return authMsg("Could not save your picture: " + error.message);
       log("Joined", "ShinkaNotes");
       location.href = "index.html";
     };
   },
 
   login() {
-    $("#login-form").onsubmit = e => {
+    const resend = $("#resend");
+    $("#login-form").onsubmit = async e => {
       e.preventDefault();
-      const email = $("#login-email").value.trim().toLowerCase(), saved = load(K.user, null);
-      if (!saved || saved.email !== email) return $("#login-error").textContent = "No account for that email on this device. Create one first.";
-      store(K.session, true); location.href = "index.html";
+      if (!sb) return authMsg("Could not reach the sign-in service. Check supabase-config.js and your connection.");
+      const email = $("#login-email").value.trim().toLowerCase();
+      const { error } = await sb.auth.signInWithPassword({ email, password: $("#login-password").value });
+      if (!error) return location.href = "index.html";
+      if (error.code === "email_not_confirmed" || /not confirmed/i.test(error.message)) {
+        resend.hidden = false; resend.dataset.email = email; return authMsg("Please confirm your email first. Check your inbox (and spam).");
+      }
+      authMsg("Incorrect email or password.");
+    };
+    resend.onclick = async () => {
+      const { error } = await sb.auth.resend({ type: "signup", email: resend.dataset.email, options: { emailRedirectTo: confirmUrl() } });
+      authMsg(error ? error.message : "Confirmation email sent again.", !!error);
     };
   }
 };
 
 function init() { layout(); PAGES[PAGE]?.(); }
-// Start only after everything above is defined. Private pages need a session.
-if (PRIVATE && !signedIn) location.replace("logreg.html");
-else init();
+// Start only after everything above is defined. boot() checks Supabase for a session first.
+boot();
