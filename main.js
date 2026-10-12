@@ -41,17 +41,60 @@ const authMsg = (text, isErr = true) => { const m = $("#auth-msg"); if (m) { m.t
 // Where Supabase sends people after they click the confirmation link (works on GitHub Pages and Netlify).
 const confirmUrl = () => new URL("profile.html", location.href).href;
 
+// A message that must survive a redirect (e.g. sent back to the login page). Shown by showNotice().
+const NOTICE = "shinka.notice";
+const flash = msg => sessionStorage.setItem(NOTICE, msg);
+let setupProblem = "";   // set by boot() if the Supabase library or config failed to load
+let profileProblem = ""; // set by boot() if the profile row could not be read
+
+// Turn a Supabase error into a message that says what actually went wrong.
+function explainError(err) {
+  const m = String(err?.message || err || "").toLowerCase(), c = String(err?.code || ""), st = err?.status;
+  // Server-side failures are checked first: supabase-js labels every 5xx as "retryable", but those are not network problems.
+  if (/database error (saving|creating)/.test(m)) return "Supabase couldn't create your profile record. Run supabase/01_auth_profiles.sql in the Supabase SQL Editor, then try again.";
+  if (/error sending|smtp/.test(m)) return "Supabase couldn't send the confirmation email (email service problem). Try again later.";
+  if (st === 0 || /failed to fetch|networkerror|load failed/.test(m)) return "Can't reach Supabase. Check your internet connection and try again.";
+  if (/invalid api key|no api key/.test(m)) return "Supabase rejected the project key. Check the URL and publishable key in supabase-config.js.";
+  if (st === 429 || /rate limit/.test(c + m)) return "Too many attempts or emails sent. Wait a few minutes, then try again.";
+  if (c === "email_not_confirmed" || /not confirmed/.test(m)) return "Please confirm your email first. Check your inbox (and spam), or resend the link.";
+  if (c === "invalid_credentials" || /invalid login/.test(m)) return "Incorrect email or password.";
+  if (c === "user_already_exists" || /already registered/.test(m)) return "That email is already registered. Try signing in instead.";
+  if (c === "weak_password" || /password should/.test(m)) return err.message;
+  if (c === "42P01" || c === "PGRST205" || /could not find the table|does not exist/.test(m)) return "The profiles table doesn't exist yet. Run supabase/01_auth_profiles.sql in the Supabase SQL Editor.";
+  if (c === "42501" || /permission denied|row-level security/.test(m)) return "The database refused this (permissions / Row Level Security). Check the policies from supabase/01_auth_profiles.sql are in place.";
+  // supabase-js drops the error text of 5xx responses, so we can only point at the usual causes.
+  if (st >= 500) return `Supabase had a server problem (${st}). For sign-up the usual causes are the confirmation-email service or the profile trigger (supabase/01_auth_profiles.sql). Check Logs > Auth in the Supabase dashboard.`;
+  return (err?.message || "Something went wrong.") + (c ? ` (${c})` : "");
+}
+
 async function boot() {
-  try {
-    await loadJS("vendor/supabase-js-2.110.1.umd.js");   // pinned local copy, no CDN needed
-    await loadJS("supabase-config.js");
-    sb = window.supabase.createClient(window.SHINKA_SUPABASE.url, window.SHINKA_SUPABASE.publishableKey);
-  } catch (e) { sb = null; }
+  // 1) A confirmation link can come back with an error in the URL (expired, already used…).
+  const q = new URLSearchParams(location.search), h = new URLSearchParams(location.hash.slice(1));
+  const urlCode = h.get("error_code") || q.get("error_code"), urlDesc = h.get("error_description") || q.get("error_description") || "";
+  if (urlCode) {
+    flash(/expired|invalid|denied/.test(urlCode + urlDesc.toLowerCase())
+      ? "That confirmation link is invalid or has expired. If you already confirmed, just sign in. Otherwise enter your email and tap “Resend confirmation email”."
+      : "Confirmation failed: " + (urlDesc || urlCode));
+    if (PAGE === "profile") return location.replace("login.html");
+  }
+  // 2) Load the library, THEN the config, and say exactly which step failed.
+  let failed = "";
+  try { await loadJS("vendor/supabase-js-2.110.1.umd.js"); } catch { failed = "vendor/supabase-js-2.110.1.umd.js"; }
+  if (!failed) try { await loadJS("supabase-config.js"); } catch { failed = "supabase-config.js"; }
+  const cfg = window.SHINKA_SUPABASE;
+  if (failed) setupProblem = `Could not load ${failed}. Check that it is uploaded to GitHub at that exact path, then reload.`;
+  else if (!window.supabase?.createClient) setupProblem = "The Supabase library loaded but did not start. Re-upload vendor/supabase-js-2.110.1.umd.js.";
+  else if (!cfg?.url || !cfg?.publishableKey) setupProblem = "supabase-config.js is missing the url or publishableKey.";
+  else sb = window.supabase.createClient(cfg.url, cfg.publishableKey);
+  if (setupProblem) flash(setupProblem);
+  // 3) Who is signed in?
   if (sb) {
     // getSession() also picks up the session from the confirmation-link URL.
-    const { data } = await sb.auth.getSession(), s = data.session;
+    const { data, error } = await sb.auth.getSession(), s = data?.session;
+    if (error && !urlCode) flash(explainError(error));
     if (s) {
-      const { data: p } = await sb.from("profiles").select("full_name, avatar").eq("id", s.user.id).maybeSingle();
+      const { data: p, error: pe } = await sb.from("profiles").select("full_name, avatar").eq("id", s.user.id).maybeSingle();
+      if (pe) { profileProblem = explainError(pe); flash(profileProblem); }
       user = { id: s.user.id, email: s.user.email, name: p?.full_name || s.user.user_metadata?.full_name || "", avatar: p?.avatar || 1 };
       signedIn = true;
     }
@@ -61,6 +104,22 @@ async function boot() {
   if (PRIVATE && !signedIn) return location.replace("logreg.html");
   if (signedIn && ["login", "registration", "logreg"].includes(PAGE)) return location.replace("index.html");
   init();
+}
+
+// Show a pending message in a bar above the page content (outside #app so page code can't wipe it).
+function showNotice() {
+  const msg = sessionStorage.getItem(NOTICE);
+  if (!msg) return;
+  sessionStorage.removeItem(NOTICE);
+  $("#app").insertAdjacentHTML("beforebegin", `<div class="notice-bar"><p class="notice" role="alert">${esc(msg)}</p></div>`);
+  if (/Resend confirmation/.test(msg)) $("#resend")?.removeAttribute("hidden");
+}
+async function resendLink(btn) {
+  const email = btn.dataset.email || $("#login-email")?.value.trim().toLowerCase();
+  if (!email) return authMsg("Type your email in the form first.");
+  if (!sb) return authMsg(setupProblem || "The sign-in service did not load.");
+  const { error } = await sb.auth.resend({ type: "signup", email, options: { emailRedirectTo: confirmUrl() } });
+  authMsg(error ? explainError(error) : "Confirmation email sent. Check your inbox (and spam).", !!error);
 }
 
 async function signOut() {
@@ -293,24 +352,21 @@ const PAGES = {
     form.onsubmit = async e => {
       e.preventDefault();
       if (!form.checkValidity()) return form.reportValidity();
-      if (!sb) return authMsg("Could not reach the sign-up service. Check supabase-config.js and your connection.");
+      if (!sb) return authMsg(setupProblem || "The sign-up service did not load.");
       if ($("#password").value !== $("#confirm-password").value) return authMsg("Passwords do not match.");
       const email = $("#email").value.trim().toLowerCase(), btn = form.querySelector("button[type=submit]");
       btn.disabled = true; authMsg("Creating your account…", false);
       const { data, error } = await sb.auth.signUp({ email, password: $("#password").value,
         options: { data: { full_name: $("#fullname").value.trim() }, emailRedirectTo: confirmUrl() } });
       btn.disabled = false;
-      if (error) return authMsg(error.message);
+      if (error) return authMsg(explainError(error));
       if (data.session) return location.href = "profile.html";           // only if email confirmation is off
       // With confirmation on, an already-registered email returns a user with no identities.
       if (data.user && data.user.identities && data.user.identities.length === 0) return authMsg("That email may already be registered. Try signing in instead.");
       form.hidden = true; resend.hidden = false; resend.dataset.email = email;
       authMsg(`Almost there! We sent a confirmation link to ${email}. Open it to finish setting up your profile.`, false);
     };
-    resend.onclick = async () => {
-      const { error } = await sb.auth.resend({ type: "signup", email: resend.dataset.email, options: { emailRedirectTo: confirmUrl() } });
-      authMsg(error ? error.message : "Confirmation email sent again.", !!error);
-    };
+    resend.onclick = () => resendLink(resend);
   },
 
   profile() {
@@ -318,10 +374,13 @@ const PAGES = {
     if (!signedIn) return location.replace("login.html");
     document.querySelectorAll(".avatar").forEach(a => a.textContent = (user.name || "S")[0].toUpperCase());
     $("#finish-registration").onclick = async () => {
+      authMsg("", false);   // clear any old message
       const pick = $('input[name="avatar"]:checked');
       if (!pick) return authMsg("Please choose a profile picture.");
-      const { error } = await sb.from("profiles").update({ avatar: Number(pick.value) }).eq("id", user.id);
-      if (error) return authMsg("Could not save your picture: " + error.message);
+      // .select() returns the updated row, so we can tell "saved" from "no row matched".
+      const { data: rows, error } = await sb.from("profiles").update({ avatar: Number(pick.value) }).eq("id", user.id).select("id");
+      if (error) return authMsg("Could not save your picture. " + explainError(error));
+      if (!rows?.length) return authMsg("Your profile record was not found, so the picture was not saved. Ask the site owner to run supabase/02_backfill_profiles.sql.");
       log("Joined", "ShinkaNotes");
       location.href = "index.html";
     };
@@ -331,22 +390,17 @@ const PAGES = {
     const resend = $("#resend");
     $("#login-form").onsubmit = async e => {
       e.preventDefault();
-      if (!sb) return authMsg("Could not reach the sign-in service. Check supabase-config.js and your connection.");
+      if (!sb) return authMsg(setupProblem || "The sign-in service did not load.");
       const email = $("#login-email").value.trim().toLowerCase();
       const { error } = await sb.auth.signInWithPassword({ email, password: $("#login-password").value });
       if (!error) return location.href = "index.html";
-      if (error.code === "email_not_confirmed" || /not confirmed/i.test(error.message)) {
-        resend.hidden = false; resend.dataset.email = email; return authMsg("Please confirm your email first. Check your inbox (and spam).");
-      }
-      authMsg("Incorrect email or password.");
+      if (error.code === "email_not_confirmed" || /not confirmed/i.test(error.message)) { resend.hidden = false; resend.dataset.email = email; }
+      authMsg(explainError(error));
     };
-    resend.onclick = async () => {
-      const { error } = await sb.auth.resend({ type: "signup", email: resend.dataset.email, options: { emailRedirectTo: confirmUrl() } });
-      authMsg(error ? error.message : "Confirmation email sent again.", !!error);
-    };
+    resend.onclick = () => resendLink(resend);
   }
 };
 
-function init() { layout(); PAGES[PAGE]?.(); }
+function init() { layout(); PAGES[PAGE]?.(); showNotice(); }
 // Start only after everything above is defined. boot() checks Supabase for a session first.
 boot();

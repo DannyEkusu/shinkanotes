@@ -18,6 +18,7 @@ body { margin: 0; font-family: var(--font-sans); background: var(--color-bg); co
 h1, h2, h3 { line-height: 1.2; } h1 { font-size: 1.8rem; } h2 { font-size: 1.25rem; margin-top: 1.8rem; } h3 { margin: .4rem 0; }
 a { color: #1a73d9; } body.dark-mode a { color: var(--color-primary); }
 :focus-visible { outline: 3px solid var(--color-primary); outline-offset: 2px; }
+[hidden] { display: none !important; }   /* without this, .btn / .card display rules override the hidden attribute */
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .muted { color: var(--color-muted); } .small { font-size: .85rem; }
 
@@ -71,6 +72,7 @@ input[type=radio] { display: inline; width: auto; }
 /* States */
 .empty { text-align: center; padding: 28px 16px; border: 2px dashed var(--color-border); border-radius: var(--radius); color: var(--color-muted); grid-column: 1 / -1; }
 .notice { background: #fff4d6; color: #5c4200; border-left: 4px solid var(--color-warning); padding: 10px 14px; border-radius: 8px; }
+.notice-bar { max-width: 1000px; margin: 12px auto 0; padding: 0 16px; }
 .error { color: var(--color-error); font-weight: 600; }
 .chart { display: flex; align-items: flex-end; gap: 10px; height: 160px; } .chart > div { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; text-align: center; }
 .bar { background: linear-gradient(var(--color-accent), var(--color-secondary)); border-radius: 6px 6px 0 0; min-height: 3px; }
